@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+dataset
+test
+models
+raw
+input
+output 
+pretrained/*
+!pretrained/.keep

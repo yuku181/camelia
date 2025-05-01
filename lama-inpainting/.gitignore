@@ -135,6 +135,6 @@ dmypy.json
 pretrained/*
 !pretrained/.keep
 
+input
 output
 output_dbg
-demo_images
