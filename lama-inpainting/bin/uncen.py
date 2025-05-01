@@ -145,8 +145,41 @@ def inpaint(model, image_orig, mask_orig):
     return out, out_dbg
 
 
-def main():
+def process_directory_recursively(input_dir, mask_dir, output_dir, debug_dir, model):
+    for root, _, files in os.walk(input_dir):
+        relative_path = os.path.relpath(root, input_dir)
+        output_subdir = os.path.join(output_dir, relative_path)
+        debug_subdir = os.path.join(debug_dir, relative_path) if debug_dir else None
 
+        os.makedirs(output_subdir, exist_ok=True)
+        if debug_subdir:
+            os.makedirs(debug_subdir, exist_ok=True)
+
+        for file in files:
+            if file.lower().endswith('.png'):
+                in_file = os.path.join(root, file)
+                mask_file = os.path.join(mask_dir, relative_path, file)
+
+                if not os.path.exists(mask_file):
+                    print(f"Mask file not found for {in_file}, skipping.")
+                    continue
+
+                print(f"Processing: {in_file}")
+
+                img = cv2.cvtColor(cv2.imread(in_file), cv2.COLOR_BGR2RGB)
+                mask = cv2.imread(mask_file)
+
+                output, dbg = inpaint(model, img, mask)
+
+                out_path = os.path.join(output_subdir, file)
+                cv2.imwrite(out_path, cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+
+                if debug_subdir:
+                    dbg_path = os.path.join(debug_subdir, file)
+                    cv2.imwrite(dbg_path, cv2.cvtColor(dbg, cv2.COLOR_BGR2RGB))
+
+
+def main():
     parser = ArgumentParser()
     parser.add_argument('--in_dir', required=True, help='dir with input images')
     parser.add_argument('--mask_dir', required=True, help='dir with input masks')
@@ -165,25 +198,7 @@ def main():
     if args.debug_dir and not os.path.exists(args.debug_dir):
         os.makedirs(args.debug_dir)
 
-    files = os.listdir(args.in_dir)
-    files = [f for f in files if f.endswith(('.png', ))]
-    for img_f in files:
-        in_file = os.path.join(args.in_dir, img_f)
-        mask_file = os.path.join(args.mask_dir, img_f)
-        print(in_file)
-
-        img = cv2.cvtColor(cv2.imread(in_file), cv2.COLOR_BGR2RGB)
-        mask = cv2.imread(mask_file)
-
-        output, dbg = inpaint(model, img, mask)
-
-        out_path = os.path.join(args.out_dir, img_f)
-        cv2.imwrite(out_path, cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
-
-        if args.debug_dir:
-            dbg_path = os.path.join(args.debug_dir, img_f)
-            cv2.imwrite(dbg_path, cv2.cvtColor(dbg, cv2.COLOR_BGR2RGB))
-
+    process_directory_recursively(args.in_dir, args.mask_dir, args.out_dir, args.debug_dir, model)
 
 
 if __name__ == '__main__':

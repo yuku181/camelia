@@ -6,7 +6,15 @@ dataset
 test
 models
 raw
-input
-output 
+
+input/black_bars/*
+!input/black_bars/.keep
+input/white_bars/*
+!input/white_bars/.keep
+input/transparent_black/*
+!input/transparent_black/.keep
+
+output
+
 pretrained/*
 !pretrained/.keep

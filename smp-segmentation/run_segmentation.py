@@ -8,36 +8,34 @@ from albumentations import Compose, Normalize, Resize
 from albumentations.pytorch import ToTensorV2
 from PIL import Image
 
-# Constants
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMAGE_SIZE = 1024
-INPUT_DIR = "input/"
 OUTPUT_DIR = "output/"
 
 MODEL_PATHS = {
-    "black_bars": "pretrained/best_transparent_black_model.pth",
+    "black_bars": "pretrained/best_black_bars_model.pth",
     "white_bars": "pretrained/best_white_bars_model.pth",
     "transparent_black": "pretrained/best_transparent_black_model.pth"
 }
 
-# Preprocessing pipeline
 preprocess_pipeline = Compose([
     Resize(IMAGE_SIZE, IMAGE_SIZE, interpolation=cv2.INTER_NEAREST),
     Normalize(),
     ToTensorV2()
 ])
 
+def get_input_dir(model_type):
+    """Get input directory based on model type."""
+    return os.path.join("input", model_type)
+
 def load_model(model_path):
     """Load the trained model from the specified path."""
     checkpoint = torch.load(model_path, map_location=DEVICE)
     if "model_state_dict" in checkpoint:
-        # If the checkpoint contains additional metadata, extract the model's state dictionary
         model_state_dict = checkpoint["model_state_dict"]
     else:
-        # If the file is just the state dictionary, use it directly
         model_state_dict = checkpoint
 
-    # Define the model architecture
     model = smp.UnetPlusPlus(
         encoder_name="efficientnet-b6",
         encoder_weights=None,
@@ -45,7 +43,6 @@ def load_model(model_path):
         classes=1
     ).to(DEVICE)
 
-    # Load the state dictionary into the model
     model.load_state_dict(model_state_dict)
     model.eval()
     return model
@@ -83,57 +80,60 @@ def create_opacity_mask(predicted_mask):
     opacity_mask[predicted_mask > 0.5] = 100
     return opacity_mask
 
-def save_results(original_image, predicted_mask, output_path, input_filename):
+def save_results(original_image, predicted_mask, output_path, relative_output_path):
     """Save the original image and predicted mask to the output directory."""
-    images_output_dir = os.path.join(output_path, "images")
-    masks_output_dir = os.path.join(output_path, "masks")
+    images_output_dir = os.path.join(output_path, "images", os.path.dirname(relative_output_path))
+    masks_output_dir = os.path.join(output_path, "masks", os.path.dirname(relative_output_path))
 
     os.makedirs(images_output_dir, exist_ok=True)
     os.makedirs(masks_output_dir, exist_ok=True)
 
-    # Normalize mask to 0-255 range
     if predicted_mask.max() > 0:
         predicted_mask = (predicted_mask / predicted_mask.max() * 255).astype(np.uint8)
 
-    # Resize mask back to original image size
     h, w = original_image.shape[:2]
     resized_mask = cv2.resize(predicted_mask, (w, h), interpolation=cv2.INTER_NEAREST)
 
-    # Save original image
-    original_image_path = os.path.join(images_output_dir, input_filename)
+    original_image_path = os.path.join(images_output_dir, os.path.basename(relative_output_path))
     Image.fromarray(original_image).save(original_image_path, format="PNG")
 
-    # Save mask
-    mask_path = os.path.join(masks_output_dir, input_filename)
+    mask_path = os.path.join(masks_output_dir, os.path.basename(relative_output_path))
     Image.fromarray(resized_mask).save(mask_path, format="PNG")
 
-def run_inference(model_path):
+def process_directory_recursively(input_dir, output_dir, model):
+    for root, _, files in os.walk(input_dir):
+        relative_path = os.path.relpath(root, input_dir)
+        output_subdir = os.path.join(output_dir, relative_path)
+        os.makedirs(output_subdir, exist_ok=True)
+
+        for file in files:
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                image_path = os.path.join(root, file)
+                try:
+                    print(f"Processing: {image_path}")
+                    original_image, tensor_image = preprocess_image(image_path)
+                    predicted_mask = predict_mask(model, tensor_image)
+
+                    opacity_mask = create_opacity_mask(predicted_mask)
+
+                    save_results(original_image, opacity_mask, output_dir, os.path.join(relative_path, file))
+                except Exception as e:
+                    print(f"Error processing {image_path}: {e}")
+
+def run_inference(model_path, model_type):
     """Run inference on all images in the input directory."""
     model = load_model(model_path)
 
-    input_images = [
-        os.path.join(INPUT_DIR, filename)
-        for filename in os.listdir(INPUT_DIR)
-        if filename.lower().endswith(('.png', '.jpg', '.jpeg'))
-    ]
+    input_dir = get_input_dir(model_type)
+    print(f"Using input directory: {input_dir}")
 
-    if not input_images:
-        print(f"No images found in {INPUT_DIR}")
+    if not os.path.exists(input_dir):
+        os.makedirs(input_dir, exist_ok=True)
+        print(f"Created input directory: {input_dir}")
+        print(f"Please place input images in {input_dir}")
         return
 
-    for image_path in input_images:
-        try:
-            print(f"Processing: {image_path}")
-            original_image, tensor_image = preprocess_image(image_path)
-            predicted_mask = predict_mask(model, tensor_image)
-
-            opacity_mask = create_opacity_mask(predicted_mask)
-
-            input_filename = os.path.basename(image_path)
-            output_path = OUTPUT_DIR
-            save_results(original_image, opacity_mask, output_path, input_filename)
-        except Exception as e:
-            print(f"Error processing {image_path}: {e}")
+    process_directory_recursively(input_dir, OUTPUT_DIR, model)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run segmentation inference.")
@@ -147,4 +147,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model_path = MODEL_PATHS[args.model_type]
-    run_inference(model_path)
+    run_inference(model_path, args.model_type)
