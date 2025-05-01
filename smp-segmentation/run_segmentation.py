@@ -10,7 +10,7 @@ from PIL import Image
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMAGE_SIZE = 1024
-OUTPUT_DIR = "output/"
+DEFAULT_OUTPUT_DIR = "output/"
 
 MODEL_PATHS = {
     "black_bars": "pretrained/best_black_bars_model.pth",
@@ -24,9 +24,9 @@ preprocess_pipeline = Compose([
     ToTensorV2()
 ])
 
-def get_input_dir(model_type):
+def get_input_dir(model_type, base_input_dir="input"):
     """Get input directory based on model type."""
-    return os.path.join("input", model_type)
+    return os.path.join(base_input_dir, model_type)
 
 def load_model(model_path):
     """Load the trained model from the specified path."""
@@ -120,12 +120,12 @@ def process_directory_recursively(input_dir, output_dir, model):
                 except Exception as e:
                     print(f"Error processing {image_path}: {e}")
 
-def run_inference(model_path, model_type):
+def run_inference(model_path, model_type, base_input_dir, output_dir):
     """Run inference on all images in the input directory."""
     model = load_model(model_path)
 
-    input_dir = get_input_dir(model_type)
-    print(f"Using input directory: {input_dir}")
+    input_dir = get_input_dir(model_type, base_input_dir)
+    # print(f"Using input directory: {input_dir}")
 
     if not os.path.exists(input_dir):
         os.makedirs(input_dir, exist_ok=True)
@@ -133,7 +133,7 @@ def run_inference(model_path, model_type):
         print(f"Please place input images in {input_dir}")
         return
 
-    process_directory_recursively(input_dir, OUTPUT_DIR, model)
+    process_directory_recursively(input_dir, output_dir, model)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run segmentation inference.")
@@ -144,7 +144,19 @@ if __name__ == "__main__":
         choices=MODEL_PATHS.keys(),
         help="Specify the model type to use. Options: 'black_bars', 'white_bars', etc."
     )
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        default="input",
+        help="Base input directory (model_type subfolder will be appended)"
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Output directory for segmentation results"
+    )
     args = parser.parse_args()
 
     model_path = MODEL_PATHS[args.model_type]
-    run_inference(model_path, args.model_type)
+    run_inference(model_path, args.model_type, args.input_dir, args.output_dir)
