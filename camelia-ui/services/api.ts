@@ -21,7 +21,7 @@ export interface ApiResponse {
 export async function processImages(
     files: File[],
     processingType: 'black_bars' | 'white_bars' | 'transparent_black'
-): Promise<ResultItem[]> {
+): Promise<{ sessionId: string }> {
     // Create form data with files
     const formData = new FormData();
 
@@ -45,14 +45,64 @@ export async function processImages(
         throw new Error(data.error || 'Failed to process images');
     }
 
-    if (!data.success || !data.session_id || !data.results || !data.results.length) {
+    if (!data.success || !data.session_id) {
         throw new Error('Invalid response from server');
     }
 
-    const sessionId = data.session_id;
+    return { sessionId: data.session_id };
+}
 
-    // Transform API results to the format we need
-    return data.results.map((result) => {
+/**
+ * Check the status of a processing job
+ */
+export async function checkProcessingStatus(sessionId: string): Promise<{
+    status: 'processing' | 'completed' | 'error';
+    results?: Array<{ filename: string }>;
+}> {
+    const response = await fetch(`${API_BASE_URL}/status/${sessionId}`);
+
+    if (!response.ok) {
+        throw new Error('Failed to check processing status');
+    }
+
+    const data = await response.json();
+
+    return {
+        status: data.status,
+        results: data.results
+    };
+}
+
+/**
+ * Stream logs from the processing job
+ */
+export function streamProcessingLogs(sessionId: string, onLog: (log: string) => void): () => void {
+    const evtSource = new EventSource(`${API_BASE_URL}/logs/${sessionId}`);
+
+    evtSource.onmessage = (event) => {
+        if (event.data && event.data.trim()) {
+            onLog(event.data);
+        }
+    };
+
+    evtSource.onerror = () => {
+        console.error('EventSource failed:', sessionId);
+        evtSource.close();
+    };
+
+    return () => {
+        evtSource.close();
+    };
+}
+
+/**
+ * Transform API results to the format for display
+ */
+export function transformResults(
+    sessionId: string,
+    results: Array<{ filename: string }>
+): ResultItem[] {
+    return results.map((result) => {
         return {
             filename: result.filename,
             original: `${API_BASE_URL}/original/${result.filename}`,

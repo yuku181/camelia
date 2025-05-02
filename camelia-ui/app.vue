@@ -1,5 +1,4 @@
 <template>
-    <UApp>
-        <NuxtPage />
-    </UApp>
+    <NavigationMenu />
+    <NuxtPage />
 </template>

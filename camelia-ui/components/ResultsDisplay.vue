@@ -57,7 +57,7 @@ function downloadImage(url: string, filename: string): void {
 </script>
 
 <style scoped>
-.results-section {
+/* .results-section {
     background: #f9f9f9;
     border-radius: 8px;
     padding: 20px;
@@ -116,5 +116,5 @@ function downloadImage(url: string, filename: string): void {
 
 .result-actions button:hover {
     background-color: #27ae60;
-}
+} */
 </style>

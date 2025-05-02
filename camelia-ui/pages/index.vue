@@ -1,45 +1,51 @@
 <template>
-    <div class="bg-rosepine-base">
-        <header>
-            <h1>Camelia Decensor</h1>
-            <p>Upload images for processing</p>
-        </header>
+    <main v-auto-animate>
+        <FileUploader v-model:selectedFiles="selectedFiles" />
 
-        <main>
-            <FileUploader v-model:selectedFiles="selectedFiles" />
+        <ProcessingOptions
+            v-model:processingType="processingType"
+            :canProcess="canProcess"
+            :isProcessing="isProcessing"
+            @process="processImages" />
 
-            <ProcessingOptions
-                v-model:processingType="processingType"
-                :canProcess="canProcess"
-                :isProcessing="isProcessing"
-                @process="processImages" />
+        <LoadingConsole
+            message="Processing images, this may take some time..."
+            :logs="processLogs"
+            :isProcessing="isProcessing"
+            :isVisible="isProcessing || showLogs"
+            @closeConsole="hideConsole" />
 
-            <LoadingSpinner
-                :isVisible="isProcessing"
-                message="Processing images, this may take some time..." />
+        <ResultsDisplay :results="results" />
 
-            <ResultsDisplay :results="results" />
-
-            <ErrorMessage :message="errorMessage" />
-        </main>
-    </div>
+        <ErrorMessage :message="errorMessage" />
+    </main>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import FileUploader from '@/components/FileUploader.vue';
 import ProcessingOptions from '@/components/ProcessingOptions.vue';
-import LoadingSpinner from '@/components/LoadingSpinner.vue';
+import LoadingConsole from '~/components/LoadingConsole.vue';
 import ResultsDisplay from '@/components/ResultsDisplay.vue';
 import ErrorMessage from '@/components/ErrorMessage.vue';
-import { processImages as apiProcessImages } from '@/services/api';
+import {
+    processImages as apiProcessImages,
+    checkProcessingStatus,
+    streamProcessingLogs,
+    transformResults
+} from '@/services/api';
 import type { ResultItem } from '@/services/api';
 
 const selectedFiles = ref<File[]>([]);
 const processingType = ref<'black_bars' | 'white_bars' | 'transparent_black'>('black_bars');
 const isProcessing = ref<boolean>(false);
+const showLogs = ref<boolean>(false);
 const results = ref<ResultItem[]>([]);
 const errorMessage = ref<string>('');
+const processLogs = ref<string[]>([]);
+const currentSessionId = ref<string | null>(null);
+let logStreamCleanup: (() => void) | null = null;
+let statusCheckInterval: number | null = null;
 
 const canProcess = computed((): boolean => selectedFiles.value.length > 0);
 
@@ -47,60 +53,80 @@ async function processImages(): Promise<void> {
     if (!canProcess.value || isProcessing.value) return;
 
     isProcessing.value = true;
+    showLogs.value = true;
     errorMessage.value = '';
     results.value = [];
+    processLogs.value = [];
 
     try {
-        const processedResults = await apiProcessImages(selectedFiles.value, processingType.value);
-        results.value = processedResults;
+        const { sessionId } = await apiProcessImages(selectedFiles.value, processingType.value);
+        currentSessionId.value = sessionId;
+
+        logStreamCleanup = streamProcessingLogs(sessionId, (log) => {
+            if (log.trim()) {
+                processLogs.value.push(log);
+            }
+        });
+
+        statusCheckInterval = window.setInterval(async () => {
+            try {
+                if (!currentSessionId.value) return;
+
+                const status = await checkProcessingStatus(currentSessionId.value);
+
+                if (status.status === 'completed') {
+                    if (status.results) {
+                        results.value = transformResults(currentSessionId.value, status.results);
+                    }
+                    finishProcessing();
+                } else if (status.status === 'error') {
+                    errorMessage.value =
+                        'An error occurred during processing. Please check the logs for details.';
+                    finishProcessing();
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }, 3000);
     } catch (error: unknown) {
         console.error('Error processing images:', error);
         errorMessage.value =
             error instanceof Error
                 ? error.message
                 : 'An error occurred while processing the images';
-    } finally {
-        isProcessing.value = false;
+        finishProcessing();
     }
 }
+
+function finishProcessing(): void {
+    isProcessing.value = false;
+
+    if (statusCheckInterval !== null) {
+        window.clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+    }
+
+    if (logStreamCleanup) {
+        logStreamCleanup();
+        logStreamCleanup = null;
+    }
+
+    currentSessionId.value = null;
+
+    showLogs.value = true;
+}
+
+function hideConsole(): void {
+    showLogs.value = false;
+}
+
+onUnmounted(() => {
+    if (statusCheckInterval !== null) {
+        window.clearInterval(statusCheckInterval);
+    }
+
+    if (logStreamCleanup) {
+        logStreamCleanup();
+    }
+});
 </script>
-
-<style>
-body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    color: #333;
-    line-height: 1.6;
-}
-
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-}
-
-header {
-    text-align: center;
-    margin-bottom: 40px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid #eee;
-}
-
-h1 {
-    color: #2c3e50;
-    margin-bottom: 10px;
-}
-
-h2 {
-    color: #3498db;
-    margin-bottom: 15px;
-}
-
-footer {
-    text-align: center;
-    margin-top: 50px;
-    padding-top: 20px;
-    border-top: 1px solid #eee;
-    color: #7f8c8d;
-}
-</style>

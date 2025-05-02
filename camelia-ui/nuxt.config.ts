@@ -7,5 +7,6 @@ export default defineNuxtConfig({
     css: ['~/assets/css/main.css'],
     vite: {
         plugins: [tailwindcss()]
-    }
+    },
+    modules: ['@nuxt/fonts', '@nuxt/icon', '@formkit/auto-animate/nuxt']
 });

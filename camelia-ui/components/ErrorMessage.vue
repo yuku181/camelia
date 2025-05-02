@@ -11,7 +11,7 @@ defineProps<{
 </script>
 
 <style scoped>
-.error-section {
+/* .error-section {
     background: #fee;
     border-radius: 8px;
     border-left: 4px solid #e74c3c;
@@ -23,5 +23,5 @@ defineProps<{
 .error-message {
     color: #e74c3c;
     font-weight: 500;
-}
+} */
 </style>
