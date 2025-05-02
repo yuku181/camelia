@@ -118,7 +118,12 @@ def convert_to_png(image_path):
         return image_path, False
     
     try:
-        print(f"Converting {ext} image to PNG: {image_path}")
+        workspace_root = os.environ.get('WORKSPACE_ROOT', '')
+        display_path = image_path
+        if workspace_root and image_path.startswith(workspace_root):
+            display_path = image_path[len(workspace_root):].lstrip(os.sep)
+        
+        print(f"Converting {ext} image to PNG: {display_path}")
         img = Image.open(image_path)
         
         fd, temp_path = tempfile.mkstemp(suffix='.png')
@@ -127,11 +132,13 @@ def convert_to_png(image_path):
         img.save(temp_path, format='PNG')
         return temp_path, True
     except Exception as e:
-        print(f"Error converting image {image_path}: {e}")
+        print(f"Error converting image {display_path}: {e}")
         return image_path, False
 
 def process_directory_recursively(input_dir, output_dir, model):
     temp_files = []
+    
+    workspace_root = os.environ.get('WORKSPACE_ROOT', '')
     
     try:
         for root, _, files in os.walk(input_dir):
@@ -148,7 +155,11 @@ def process_directory_recursively(input_dir, output_dir, model):
                         if is_temp:
                             temp_files.append(png_path)
                         
-                        print(f"Processing: {image_path}")
+                        display_path = image_path
+                        if workspace_root and image_path.startswith(workspace_root):
+                            display_path = image_path[len(workspace_root):].lstrip(os.sep)
+                        
+                        print(f"Processing: {display_path}")
                         original_image, tensor_image = preprocess_image(png_path)
                         predicted_mask = predict_mask(model, tensor_image)
 
@@ -158,8 +169,9 @@ def process_directory_recursively(input_dir, output_dir, model):
                         save_results(original_image, opacity_mask, output_dir, 
                                     os.path.join(relative_path, output_filename))
                     except Exception as e:
-                        print(f"Error processing {image_path}: {e}")
+                        print(f"Error processing {display_path}: {e}")
     finally:
+        # Clean up any temporary files
         for temp_file in temp_files:
             try:
                 os.remove(temp_file)

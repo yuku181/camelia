@@ -146,6 +146,8 @@ def inpaint(model, image_orig, mask_orig):
 
 
 def process_directory_recursively(input_dir, mask_dir, output_dir, debug_dir, model):
+    workspace_root = os.environ.get('WORKSPACE_ROOT', '')
+    
     for root, _, files in os.walk(input_dir):
         relative_path = os.path.relpath(root, input_dir)
         output_subdir = os.path.join(output_dir, relative_path)
@@ -156,27 +158,57 @@ def process_directory_recursively(input_dir, mask_dir, output_dir, debug_dir, mo
             os.makedirs(debug_subdir, exist_ok=True)
 
         for file in files:
+            # Support both original and PNG extensions
             if file.lower().endswith('.png'):
                 in_file = os.path.join(root, file)
                 mask_file = os.path.join(mask_dir, relative_path, file)
 
                 if not os.path.exists(mask_file):
-                    print(f"Mask file not found for {in_file}, skipping.")
+                    print(f"Mask file not found for {file}, checking for mask with different extension...")
+                    base_name = os.path.splitext(file)[0]
+                    mask_found = False
+                    
+                    for ext in ['.png', '.jpg', '.jpeg', '.webp']:
+                        potential_mask = os.path.join(mask_dir, relative_path, base_name + ext)
+                        if os.path.exists(potential_mask):
+                            mask_file = potential_mask
+                            mask_found = True
+                            print(f"Found matching mask: {os.path.basename(mask_file)}")
+                            break
+                            
+                    if not mask_found:
+                        print(f"No mask file found for {file}, skipping.")
+                        continue
+
+                display_path = in_file
+                if workspace_root and in_file.startswith(workspace_root):
+                    display_path = in_file[len(workspace_root):].lstrip(os.sep)
+                    
+                print(f"Processing: {display_path}")
+
+                try:
+                    img = cv2.cvtColor(cv2.imread(in_file), cv2.COLOR_BGR2RGB)
+                    mask = cv2.imread(mask_file)
+                    
+                    if img is None:
+                        print(f"Error: Could not read image file {os.path.basename(in_file)}")
+                        continue
+                        
+                    if mask is None:
+                        print(f"Error: Could not read mask file {os.path.basename(mask_file)}")
+                        continue
+
+                    output, dbg = inpaint(model, img, mask)
+
+                    out_path = os.path.join(output_subdir, file)
+                    cv2.imwrite(out_path, cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+
+                    if debug_subdir:
+                        dbg_path = os.path.join(debug_subdir, file)
+                        cv2.imwrite(dbg_path, cv2.cvtColor(dbg, cv2.COLOR_BGR2RGB))
+                except Exception as e:
+                    print(f"Error processing {os.path.basename(in_file)}: {str(e)}")
                     continue
-
-                print(f"Processing: {in_file}")
-
-                img = cv2.cvtColor(cv2.imread(in_file), cv2.COLOR_BGR2RGB)
-                mask = cv2.imread(mask_file)
-
-                output, dbg = inpaint(model, img, mask)
-
-                out_path = os.path.join(output_subdir, file)
-                cv2.imwrite(out_path, cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
-
-                if debug_subdir:
-                    dbg_path = os.path.join(debug_subdir, file)
-                    cv2.imwrite(dbg_path, cv2.cvtColor(dbg, cv2.COLOR_BGR2RGB))
 
 
 def main():

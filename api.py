@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 import tempfile
 import subprocess
 import psutil
+import time
 
 app = Flask(__name__, static_folder=None)
 CORS(app)  # Enable CORS for all routes
@@ -97,9 +98,13 @@ def process_images(image_paths, model_type, session_id):
         shutil.copyfile(image_path, dst_path)
         process_logs[session_id].put(f"Prepared {filename} to input directory")
     
-    # Run the processing pipeline
+    env = os.environ.copy()
+    env['PYTHONUNBUFFERED'] = '1' 
+    env['PYTHONIOENCODING'] = 'UTF-8'
+    
     cmd = [
-        "python", 
+        "python",
+        "-u", 
         os.path.join(WORKSPACE_ROOT, "main.py"),
         "--model_type", model_type
     ]
@@ -114,14 +119,16 @@ def process_images(image_paths, model_type, session_id):
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
+            env=env
         )
         
-        # Create a thread to read output in real-time to avoid blocking
+        # Create a thread to read output in real-time
         def read_output():
             for line in iter(process.stdout.readline, ''):
-                if line.strip(): 
+                if line.strip():
                     process_logs[session_id].put(line.strip())
+                    time.sleep(0.01)
             process.stdout.close()
             
         # Start the output reader thread
@@ -194,12 +201,12 @@ def process_images_thread(image_paths, model_type, session_id):
         if session_id and results:
             app.config[f"results_{session_id}"] = results
             
-        process_logs[session_id].put("Job finished. Closing log...")
+        process_logs[session_id].put("Job finished")
     except Exception as e:
         app.logger.error(f"Thread error: {e}")
         process_logs[session_id].put(f"Error: {str(e)}")
         process_status[session_id] = "error"
-        process_logs[session_id].put("Job failed. Closing log...")
+        process_logs[session_id].put("Job failed")
 
 @app.route('/api/process', methods=['POST'])
 def process():
@@ -294,30 +301,36 @@ def stream_logs(session_id):
         
         # Send any existing logs
         while not log_queue.empty():
-            yield f"data: {log_queue.get()}\n\n"
+            log_message = log_queue.get()
+            yield f"data: {log_message}\n\n"
         
         # Stream new logs as they come in
-        while session_id in process_status and process_status[session_id] == "processing":
+        while session_id in process_status and process_status[session_id] in ["processing", "starting"]:
             try:
                 try:
-                    log = log_queue.get(timeout=0.5)
-                    yield f"data: {log}\n\n"
+                    log = log_queue.get(timeout=0.1)
+                    if log:
+                        yield f"data: {log}\n\n"
                 except queue.Empty:
-                    yield f"data: \n\n"
+                    yield f": keep-alive\n\n"
             except Exception as e:
                 app.logger.error(f"Error in log streaming: {e}")
                 break
         
         # Send any remaining logs
         while not log_queue.empty():
-            yield f"data: {log_queue.get()}\n\n"
+            log_message = log_queue.get()
+            yield f"data: {log_message}\n\n"
         
         # Send completion message
         if session_id in process_status:
             status = process_status[session_id]
             yield f"data: Processing {status}\n\n"
     
-    return Response(stream_with_context(generate()), mimetype="text/event-stream")
+    response = Response(stream_with_context(generate()), mimetype="text/event-stream")
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['X-Accel-Buffering'] = 'no'
+    return response
 
 @app.route('/api/results/<session_id>/<filename>', methods=['GET'])
 def get_result(session_id, filename):

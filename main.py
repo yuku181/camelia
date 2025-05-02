@@ -3,7 +3,13 @@ import subprocess
 import argparse
 import shutil
 
-def run_segmentation(model_type, segmentation_script, input_dir, output_dir):
+def get_relative_path(full_path, workspace_root):
+    """Convert a full path to a relative path from workspace root."""
+    if full_path.startswith(workspace_root):
+        return full_path[len(workspace_root):].lstrip(os.sep)
+    return full_path
+
+def run_segmentation(model_type, segmentation_script, input_dir, output_dir, workspace_root):
     """Run the segmentation step."""
     print(f"Running segmentation with model type: {model_type}")
     
@@ -14,27 +20,58 @@ def run_segmentation(model_type, segmentation_script, input_dir, output_dir):
     
     current_dir = os.getcwd()
     
+    # Setup environment variables to ensure unbuffered output
+    env = os.environ.copy()
+    env['PYTHONUNBUFFERED'] = '1'
+    env['PYTHONIOENCODING'] = 'UTF-8'
+    env['WORKSPACE_ROOT'] = workspace_root  # Pass workspace root to child processes
+    
     try:
         if script_dir:
             os.chdir(script_dir)
         
         script_name = os.path.basename(script_path)
         command = [
-            "python", script_name,
+            "python",
+            "-u",  # Unbuffered mode
+            script_name,
             "--model_type", model_type,
             "--input_dir", input_dir_abs,
             "--output_dir", output_dir_abs
         ]
-        # print(f"Running command: {' '.join(command)}")
-        subprocess.run(command, check=True)
+        
+        # Use subprocess.Popen for more control over real-time output
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True, 
+            bufsize=1,  # Line buffered
+            universal_newlines=True,
+            env=env
+        )
+        
+        # Process and print output line by line in real-time
+        for line in iter(process.stdout.readline, ''):
+            if line.strip():
+                print(line.strip(), flush=True)
+                
+        process.stdout.close()
+        return_code = process.wait()
+        
+        if return_code != 0:
+            print(f"Segmentation process exited with code {return_code}", flush=True)
+            return False
+            
     finally:
         os.chdir(current_dir)
     
-    print("Segmentation completed.")
+    print("Segmentation completed", flush=True)
+    return True
 
-def run_inpainting(in_dir, mask_dir, out_dir, checkpoint, inpainting_script, debug_dir=None):
+def run_inpainting(in_dir, mask_dir, out_dir, checkpoint, inpainting_script, workspace_root, debug_dir=None):
     """Run the inpainting step."""
-    print("Running inpainting...")
+    print("Running inpainting...", flush=True)
     
     in_dir_abs = os.path.abspath(in_dir)
     mask_dir_abs = os.path.abspath(mask_dir)
@@ -49,15 +86,20 @@ def run_inpainting(in_dir, mask_dir, out_dir, checkpoint, inpainting_script, deb
     
     env = os.environ.copy()
     env["PYTHONPATH"] = lama_root + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
+    env['PYTHONUNBUFFERED'] = '1'
+    env['PYTHONIOENCODING'] = 'UTF-8'
+    env['WORKSPACE_ROOT'] = workspace_root
     
-    print(f"Running from lama root: {lama_root}")
-    print(f"Using checkpoint: {checkpoint_abs}")
+    print(f"Running from lama root: {get_relative_path(lama_root, workspace_root)}", flush=True)
+    print(f"Using checkpoint: {get_relative_path(checkpoint_abs, workspace_root)}", flush=True)
     
     try:
         os.chdir(lama_root)
         
         command = [
-            "python", os.path.join("bin", script_name),
+            "python",
+            "-u",
+            os.path.join("bin", script_name),
             "--in_dir", in_dir_abs,
             "--mask_dir", mask_dir_abs,
             "--out_dir", out_dir_abs,
@@ -68,11 +110,40 @@ def run_inpainting(in_dir, mask_dir, out_dir, checkpoint, inpainting_script, deb
             debug_dir_abs = os.path.abspath(debug_dir)
             command.extend(["--debug_dir", debug_dir_abs])
         
-        subprocess.run(command, check=True, env=env)
+        # Use subprocess.Popen for real-time output
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True, 
+            bufsize=1,  # Line buffered
+            universal_newlines=True,
+            env=env
+        )
+        
+        # Process and print output line by line in real-time
+        for line in iter(process.stdout.readline, ''):
+            if line.strip():
+                # Clean path to be relative
+                cleaned_line = line.strip()
+                for path_fragment in [in_dir_abs, mask_dir_abs, out_dir_abs, checkpoint_abs, lama_root]:
+                    if path_fragment in cleaned_line:
+                        rel_path = get_relative_path(path_fragment, workspace_root)
+                        cleaned_line = cleaned_line.replace(path_fragment, rel_path)
+                print(cleaned_line, flush=True)
+                
+        process.stdout.close()
+        return_code = process.wait()
+        
+        if return_code != 0:
+            print(f"Inpainting process exited with code {return_code}", flush=True)
+            return False
+            
     finally:
         os.chdir(current_dir)
     
-    print("Inpainting completed.")
+    print("Inpainting completed", flush=True)
+    return True
 
 def main():
     parser = argparse.ArgumentParser(description="Pipeline to connect segmentation and inpainting.")
@@ -90,30 +161,40 @@ def main():
     # Ensure temp directory exists
     os.makedirs(camelia_temp, exist_ok=True)
     
-    print(f"Input directory: {camelia_input}")
-    print(f"Output directory: {camelia_output}")
-    print(f"Temp directory: {camelia_temp}")
+    print(f"Input directory: {get_relative_path(camelia_input, workspace_root)}")
+    print(f"Output directory: {get_relative_path(camelia_output, workspace_root)}")
+    print(f"Temp directory: {get_relative_path(camelia_temp, workspace_root)}")
 
     # Run segmentation
-    run_segmentation(
+    segmentation_success = run_segmentation(
         model_type=args.model_type,
         segmentation_script=os.path.join(workspace_root, "smp-segmentation", "run_segmentation.py"),
         input_dir=camelia_input,
-        output_dir=camelia_temp
+        output_dir=camelia_temp,
+        workspace_root=workspace_root
     )
 
+    if not segmentation_success:
+        print("Segmentation failed. Exiting pipeline.", flush=True)
+        return
+
     # Run inpainting
-    run_inpainting(
+    inpainting_success = run_inpainting(
         in_dir=os.path.join(camelia_temp, "images"),
         mask_dir=os.path.join(camelia_temp, "masks"),
         out_dir=camelia_output,
         checkpoint=os.path.join(workspace_root, "lama-inpainting", "pretrained", "best"),
-        inpainting_script=os.path.join(workspace_root, "lama-inpainting", "bin", "uncen.py")
+        inpainting_script=os.path.join(workspace_root, "lama-inpainting", "bin", "uncen.py"),
+        workspace_root=workspace_root
     )
+    
+    if not inpainting_success:
+        print("Inpainting failed. Exiting pipeline.", flush=True)
+        return
     
     # Clean up temporary directory if args is set
     if args.clean_temp:
-        print(f"Cleaning up temporary directory contents: {camelia_temp}")
+        print(f"Cleaning up temporary directory contents: {get_relative_path(camelia_temp, workspace_root)}")
         try:
             for root_dir, dirs, files in os.walk(camelia_temp):
                 if root_dir == camelia_temp:

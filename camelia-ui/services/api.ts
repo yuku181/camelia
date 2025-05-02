@@ -82,6 +82,8 @@ export function streamProcessingLogs(sessionId: string, onLog: (log: string) => 
     evtSource.onmessage = (event) => {
         if (event.data && event.data.trim()) {
             onLog(event.data);
+            setTimeout(() => {
+            }, 0);
         }
     };
 
