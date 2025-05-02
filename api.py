@@ -26,30 +26,45 @@ def ensure_directory(directory):
     os.makedirs(directory, exist_ok=True)
 
 def clean_temp_dirs():
-    """Clean temporary directories but preserve the structure."""
-    for root_dir, dirs, files in os.walk(CAMELIA_TEMP):
-        if root_dir == CAMELIA_TEMP:
-            continue
-        
-        for file in files:
-            file_path = os.path.join(root_dir, file)
+    """Clean temporary directories while preserving the directory structure."""
+    # Clean images directory
+    images_dir = os.path.join(CAMELIA_TEMP, "images")
+    if os.path.exists(images_dir):
+        for root, dirs, files in os.walk(images_dir):
+            for file in files:
+                try:
+                    os.unlink(os.path.join(root, file))
+                except Exception as e:
+                    app.logger.error(f"Error removing file {os.path.join(root, file)}: {e}")
+    
+    # Clean masks directory
+    masks_dir = os.path.join(CAMELIA_TEMP, "masks")
+    if os.path.exists(masks_dir):
+        for root, dirs, files in os.walk(masks_dir):
+            for file in files:
+                try:
+                    os.unlink(os.path.join(root, file))
+                except Exception as e:
+                    app.logger.error(f"Error removing file {os.path.join(root, file)}: {e}")
+    
+    # Clean any other files directly in the temp directory
+    for item in os.listdir(CAMELIA_TEMP):
+        item_path = os.path.join(CAMELIA_TEMP, item)
+        if os.path.isfile(item_path):
             try:
-                os.unlink(file_path)
+                os.unlink(item_path)
             except Exception as e:
-                app.logger.error(f"Error removing file {file_path}: {e}")
-                
-        for dir_name in dirs:
-            dir_path = os.path.join(root_dir, dir_name)
+                app.logger.error(f"Error removing file {item_path}: {e}")
+        elif os.path.isdir(item_path) and item not in ["images", "masks"]:
             try:
-                shutil.rmtree(dir_path)
+                shutil.rmtree(item_path)
             except Exception as e:
-                app.logger.error(f"Error removing directory {dir_path}: {e}")
+                app.logger.error(f"Error removing directory {item_path}: {e}")
 
 def process_images(image_paths, model_type):
     """Process images using the existing Camelia functionality."""
     # Create session ID for this batch
     session_id = str(uuid.uuid4())
-    session_dir = os.path.join(CAMELIA_TEMP, session_id)
     
     # Create temporary directories
     images_dir = os.path.join(CAMELIA_TEMP, "images")
@@ -60,6 +75,9 @@ def process_images(image_paths, model_type):
     ensure_directory(masks_dir)
     ensure_directory(output_dir)
     
+    # Clean temp directories before processing
+    clean_temp_dirs()
+    
     # Copy images to the input directory with the selected model type
     model_dir = os.path.join(WORKSPACE_ROOT, "camelia-decensor", "input", model_type)
     ensure_directory(model_dir)
@@ -67,7 +85,7 @@ def process_images(image_paths, model_type):
     # Clean previous files
     for file in os.listdir(model_dir):
         file_path = os.path.join(model_dir, file)
-        if os.path.isfile(file_path):
+        if os.path.isfile(file_path) and file != ".keep":
             os.unlink(file_path)
     
     # Copy uploaded images to the model directory
