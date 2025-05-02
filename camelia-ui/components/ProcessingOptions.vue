@@ -56,24 +56,23 @@
                     </div>
                 </div>
 
-                <!-- Process Button -->
+                <!-- Process/Cancel Button -->
                 <div class="pt-4 flex justify-end">
                     <button
-                        @click="$emit('process')"
-                        :disabled="!canProcess || isProcessing"
+                        @click="handleButtonClick"
+                        :disabled="!canProcess && !isProcessing"
                         class="px-5 py-2.5 rounded-md text-base font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-base"
                         :class="[
-                            canProcess && !isProcessing
+                            isProcessing
+                                ? 'bg-love hover:bg-rose text-base shadow-sm'
+                                : canProcess
                                 ? 'bg-iris hover:bg-foam text-base shadow-sm'
                                 : 'bg-muted text-subtle cursor-not-allowed'
                         ]">
                         <div class="flex items-center space-x-2">
-                            <Icon
-                                v-if="isProcessing"
-                                name="lucide:loader"
-                                class="w-4 h-4 animate-spin" />
+                            <Icon v-if="isProcessing" name="lucide:x" class="w-4 h-4" />
                             <Icon v-else name="lucide:play" />
-                            <span>{{ isProcessing ? 'Processing...' : 'Process Images' }}</span>
+                            <span>{{ isProcessing ? 'Cancel' : 'Process Images' }}</span>
                         </div>
                     </button>
                 </div>
@@ -120,6 +119,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'update:processingType', type: ProcessingType): void;
     (e: 'process'): void;
+    (e: 'cancel'): void;
 }>();
 
 const localProcessingType = ref<ProcessingType>(props.processingType);
@@ -134,4 +134,12 @@ watch(
         localProcessingType.value = newValue;
     }
 );
+
+function handleButtonClick() {
+    if (props.isProcessing) {
+        emit('cancel');
+    } else {
+        emit('process');
+    }
+}
 </script>

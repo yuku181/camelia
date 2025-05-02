@@ -110,3 +110,25 @@ export function transformResults(
         };
     });
 }
+
+/**
+ * Cancel a running processing job
+ */
+export async function cancelProcessingJob(sessionId: string): Promise<boolean> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/cancel/${sessionId}`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to cancel processing');
+        }
+
+        const data = await response.json();
+        return data.success === true;
+    } catch (error) {
+        console.error('Error cancelling job:', error);
+        return false;
+    }
+}

@@ -2,7 +2,19 @@
     <div class="container">
         <div class="mb-4">
             <h2 class="text-xl text-foam mb-2">Select Images</h2>
-            <p class="text-sm text-text">Choose images to process with Camelia</p>
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-sm text-text">Choose images to process with Camelia</p>
+                <div
+                    v-if="selectedFiles.length > 0"
+                    class="mt-2 flex justify-end space-x-2"
+                    v-auto-animate>
+                    <button
+                        @click.stop="emit('update:selectedFiles', [])"
+                        class="px-2 text-sm text-text hover:text-love transition-colors">
+                        Clear all
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div
@@ -70,14 +82,6 @@
                     <p class="text-foam text-lg">Release to upload</p>
                 </div>
             </div>
-        </div>
-
-        <div v-if="selectedFiles.length > 0" class="mt-4 flex justify-end space-x-2" v-auto-animate>
-            <button
-                @click.stop="emit('update:selectedFiles', [])"
-                class="px-4 py-2 text-sm text-subtle hover:text-love transition-colors">
-                Clear all
-            </button>
         </div>
     </div>
 </template>

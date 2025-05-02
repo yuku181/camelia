@@ -2,7 +2,7 @@
     <div class="container">
         <div
             v-if="isVisible"
-            class="flex flex-col items-center justify-center p-8 bg-surface border border-overlay rounded-lg">
+            class="flex flex-col items-center justify-center p-6 bg-surface border border-overlay rounded-lg">
             <div class="relative mb-4" v-if="isProcessing">
                 <div class="w-6 h-6 rounded-full border-2 border-muted"></div>
                 <div
@@ -12,12 +12,12 @@
                         animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1);
                     "></div>
             </div>
-            <span class="text-text font-medium" v-if="isProcessing">{{
+            <span class="text-text font-medium mb-4" v-if="isProcessing">{{
                 message || 'Loading...'
             }}</span>
 
             <!-- Console output -->
-            <div v-if="logs && logs.length > 0" class="mt-6 w-full max-w-[900px] custom-webkit">
+            <div v-if="logs && logs.length > 0" class="w-full">
                 <div class="flex items-center justify-between px-3 py-2 bg-overlay rounded-t-md">
                     <div class="flex items-center">
                         <div class="w-3 h-3 rounded-full bg-rose mx-1"></div>
@@ -36,7 +36,7 @@
                 </div>
                 <div
                     ref="consoleBody"
-                    class="p-3 rounded-b-md text-sm font-mono h-60 overflow-y-auto bg-base whitespace-pre-wrap break-words">
+                    class="p-3 rounded-b-md text-sm font-mono h-60 custom-webkit overflow-y-auto bg-base whitespace-pre-wrap break-words">
                     <div
                         v-for="(log, index) in logs"
                         :key="index"
@@ -78,7 +78,7 @@
                         </span>
                         <!-- Warning messages -->
                         <span
-                            v-else-if="log.includes('warning') || log.includes('Warning')"
+                            v-else-if="log.includes('error') || log.includes('Error')"
                             class="text-love">
                             {{ log }}
                         </span>

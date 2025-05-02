@@ -6,7 +6,8 @@
             v-model:processingType="processingType"
             :canProcess="canProcess"
             :isProcessing="isProcessing"
-            @process="processImages" />
+            @process="processImages"
+            @cancel="cancelProcessing" />
 
         <LoadingConsole
             message="Processing images, this may take some time..."
@@ -32,7 +33,8 @@ import {
     processImages as apiProcessImages,
     checkProcessingStatus,
     streamProcessingLogs,
-    transformResults
+    transformResults,
+    cancelProcessingJob
 } from '@/services/api';
 import type { ResultItem } from '@/services/api';
 
@@ -118,6 +120,13 @@ function finishProcessing(): void {
 
 function hideConsole(): void {
     showLogs.value = false;
+}
+
+function cancelProcessing(): void {
+    if (currentSessionId.value) {
+        cancelProcessingJob(currentSessionId.value);
+    }
+    finishProcessing();
 }
 
 onUnmounted(() => {

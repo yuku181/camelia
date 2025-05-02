@@ -8,6 +8,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import tempfile
 import subprocess
+import psutil
 
 app = Flask(__name__, static_folder=None)
 CORS(app)  # Enable CORS for all routes
@@ -163,7 +164,9 @@ def process_images(image_paths, model_type, session_id):
                         process_logs[session_id].put(f"Copied temporary file as result: {file}")
         
         if not results:
-            process_logs[session_id].put("Warning: No result files were found")
+            process_logs[session_id].put("Error: No result files were found")
+            process_status[session_id] = "error"
+            return None, []
             
         process_logs[session_id].put("All results processed successfully")
         process_status[session_id] = "completed"
@@ -339,12 +342,51 @@ def get_original(filename):
     
     return send_file(filepath)
 
-if __name__ == '__main__':
-    # Ensure the required directories exist
-    ensure_directory(CAMELIA_TEMP)
-    ensure_directory(os.path.join(CAMELIA_TEMP, "images"))
-    ensure_directory(os.path.join(CAMELIA_TEMP, "masks"))
-    ensure_directory(CAMELIA_OUTPUT)
+@app.route('/api/cancel/<session_id>', methods=['POST'])
+def cancel_job(session_id):
+    """Cancel a running processing job."""
+    if session_id not in process_status:
+        return jsonify({"error": "Session not found"}), 404
     
-    # Start the server
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    try:
+        if process_status[session_id] == "processing":
+            process_logs[session_id].put("Job cancellation requested by user")
+            
+            process_status[session_id] = "cancelled"
+            
+            for process in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if process.info['cmdline'] and len(process.info['cmdline']) > 2:
+                        cmd = ' '.join(process.info['cmdline'])
+                        # Check if this is the main.py process for this session
+                        if 'python' in cmd and 'main.py' in cmd and f'--model_type' in cmd:
+                            # Kill the process
+                            process.terminate()
+                            process_logs[session_id].put(f"Process {process.info['pid']} terminated")
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
+            
+            process_logs[session_id].put("Job cancelled successfully.")
+            
+            return jsonify({
+                "success": True,
+                "message": "Job cancelled successfully"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": f"Job is not in a cancellable state. Current status: {process_status[session_id]}"
+            }), 400
+    except Exception as e:
+        app.logger.error(f"Error cancelling job: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+if __name__ == '__main__':
+    # Ensure output directories exist
+    ensure_directory(CAMELIA_TEMP)
+    ensure_directory(CAMELIA_OUTPUT)
+    app.run(host='0.0.0.0', port=5000, debug=True)
