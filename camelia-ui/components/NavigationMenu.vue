@@ -10,24 +10,24 @@ interface NavItem {
 
 const items: NavItem[] = [
     {
+        label: 'Demo',
+        icon: 'lucide:flask-conical',
+        to: '/demo'
+    },
+    {
         label: 'Guide',
         icon: 'lucide:book-open',
-        to: '/'
+        to: '/guide'
     },
     {
-        label: 'Composables',
-        icon: 'lucide:database',
-        to: '/'
-    },
-    {
-        label: 'Components',
-        icon: 'lucide:box',
-        to: '/'
+        label: 'FAQ',
+        icon: 'lucide:message-circle-question',
+        to: '/faq'
     },
     {
         label: 'GitHub',
         icon: 'simple-icons:github',
-        to: 'https://github.com/nuxt/ui',
+        to: 'https://github.com/windbow27/camelia',
         target: '_blank'
     }
 ];
@@ -47,9 +47,10 @@ const setActive = (index: number) => {
     <nav class="bg-surface w-full">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
-                <div class="flex-shrink-0 flex items-center">
-                    <span class="text-iris text-xl font-bold">Camelia</span>
-                </div>
+                <NuxtLink to="/" class="flex-shrink-0 flex items-center">
+                    <img src="/logo.png" alt="Logo" class="h-6 w-6" />
+                    <span class="ml-2 text-xl font-bold text-iris">Camelia</span>
+                </NuxtLink>
 
                 <!-- Desktop Menu -->
                 <div class="hidden md:block">

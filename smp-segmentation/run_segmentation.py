@@ -7,6 +7,7 @@ import segmentation_models_pytorch as smp
 from albumentations import Compose, Normalize, Resize
 from albumentations.pytorch import ToTensorV2
 from PIL import Image
+import tempfile
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 IMAGE_SIZE = 1024
@@ -100,25 +101,70 @@ def save_results(original_image, predicted_mask, output_path, relative_output_pa
     mask_path = os.path.join(masks_output_dir, os.path.basename(relative_output_path))
     Image.fromarray(resized_mask).save(mask_path, format="PNG")
 
+def convert_to_png(image_path):
+    """
+    Convert JPEG or WebP image to PNG format if needed.
+    
+    Args:
+        image_path: Path to the input image
+        
+    Returns:
+        Path to the PNG image (either converted temp file or original if already PNG)
+        Flag indicating if this is a temp file that should be cleaned up
+    """
+    ext = os.path.splitext(image_path)[1].lower()
+    
+    if ext == '.png':
+        return image_path, False
+    
+    try:
+        print(f"Converting {ext} image to PNG: {image_path}")
+        img = Image.open(image_path)
+        
+        fd, temp_path = tempfile.mkstemp(suffix='.png')
+        os.close(fd)
+        
+        img.save(temp_path, format='PNG')
+        return temp_path, True
+    except Exception as e:
+        print(f"Error converting image {image_path}: {e}")
+        return image_path, False
+
 def process_directory_recursively(input_dir, output_dir, model):
-    for root, _, files in os.walk(input_dir):
-        relative_path = os.path.relpath(root, input_dir)
-        output_subdir = os.path.join(output_dir, relative_path)
-        os.makedirs(output_subdir, exist_ok=True)
+    temp_files = []
+    
+    try:
+        for root, _, files in os.walk(input_dir):
+            relative_path = os.path.relpath(root, input_dir)
+            output_subdir = os.path.join(output_dir, relative_path)
+            os.makedirs(output_subdir, exist_ok=True)
 
-        for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                image_path = os.path.join(root, file)
-                try:
-                    print(f"Processing: {image_path}")
-                    original_image, tensor_image = preprocess_image(image_path)
-                    predicted_mask = predict_mask(model, tensor_image)
+            for file in files:
+                if file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                    image_path = os.path.join(root, file)
+                    try:
+                        # Convert to PNG if needed
+                        png_path, is_temp = convert_to_png(image_path)
+                        if is_temp:
+                            temp_files.append(png_path)
+                        
+                        print(f"Processing: {image_path}")
+                        original_image, tensor_image = preprocess_image(png_path)
+                        predicted_mask = predict_mask(model, tensor_image)
 
-                    opacity_mask = create_opacity_mask(predicted_mask)
+                        opacity_mask = create_opacity_mask(predicted_mask)
 
-                    save_results(original_image, opacity_mask, output_dir, os.path.join(relative_path, file))
-                except Exception as e:
-                    print(f"Error processing {image_path}: {e}")
+                        output_filename = os.path.splitext(file)[0] + '.png'
+                        save_results(original_image, opacity_mask, output_dir, 
+                                    os.path.join(relative_path, output_filename))
+                    except Exception as e:
+                        print(f"Error processing {image_path}: {e}")
+    finally:
+        for temp_file in temp_files:
+            try:
+                os.remove(temp_file)
+            except:
+                pass
 
 def run_inference(model_path, model_type, base_input_dir, output_dir):
     """Run inference on all images in the input directory."""
