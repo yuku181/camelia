@@ -51,7 +51,8 @@ Camelia is an image decensor tool to remove censorship bars from images (you kno
 
 ### Models
 
-Download the models here:
+Download the models here: [models](https://drive.google.com/drive/folders/1AAyv6ms_694VGEtET6TFRLKZ1rx7ue11?usp=sharing)
+
 Put the segmentation models in smp-segmentation/pretrained and inpainting model (the whole folder) in lama-inpainting/pretrained.
 
 ## Usage
