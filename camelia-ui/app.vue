@@ -104,46 +104,62 @@
     </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue';
 
-// API Configuration
-const API_BASE_URL = 'http://localhost:5000/api';
-
-// State management
-const fileInput = ref(null);
-const selectedFiles = ref([]);
-const processingType = ref('black_bars');
-const isProcessing = ref(false);
-const results = ref([]);
-const errorMessage = ref('');
-const sessionId = ref('');
-
-// Computed properties
-const canProcess = computed(() => selectedFiles.value.length > 0);
-
-// Methods
-function triggerFileInput() {
-    fileInput.value.click();
+interface ResultItem {
+    filename: string;
+    original: string;
+    processed: string;
 }
 
-function handleFileSelect(event) {
-    const files = Array.from(event.target.files);
-    selectedFiles.value = [...selectedFiles.value, ...files];
+interface ApiResponse {
+    success: boolean;
+    session_id: string;
+    results: Array<{
+        filename: string;
+    }>;
+    error?: string;
 }
 
-function handleFileDrop(event) {
-    const files = Array.from(event.dataTransfer.files).filter((file) =>
-        file.type.startsWith('image/')
-    );
-    selectedFiles.value = [...selectedFiles.value, ...files];
+const API_BASE_URL: string = 'http://localhost:5000/api';
+
+const fileInput = ref<HTMLInputElement | null>(null);
+const selectedFiles = ref<File[]>([]);
+const processingType = ref<'black_bars' | 'white_bars' | 'transparent_black'>('black_bars');
+const isProcessing = ref<boolean>(false);
+const results = ref<ResultItem[]>([]);
+const errorMessage = ref<string>('');
+const sessionId = ref<string>('');
+
+const canProcess = computed((): boolean => selectedFiles.value.length > 0);
+
+function triggerFileInput(): void {
+    fileInput.value?.click();
 }
 
-function removeFile(index) {
+function handleFileSelect(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    if (target.files) {
+        const files = Array.from(target.files);
+        selectedFiles.value = [...selectedFiles.value, ...files];
+    }
+}
+
+function handleFileDrop(event: DragEvent): void {
+    if (event.dataTransfer?.files) {
+        const files = Array.from(event.dataTransfer.files).filter((file) =>
+            file.type.startsWith('image/')
+        );
+        selectedFiles.value = [...selectedFiles.value, ...files];
+    }
+}
+
+function removeFile(index: number): void {
     selectedFiles.value.splice(index, 1);
 }
 
-async function processImages() {
+async function processImages(): Promise<void> {
     if (!canProcess.value || isProcessing.value) return;
 
     isProcessing.value = true;
@@ -151,24 +167,20 @@ async function processImages() {
     results.value = [];
 
     try {
-        // Create form data with files
         const formData = new FormData();
 
-        // Append each file to the form data
         selectedFiles.value.forEach((file) => {
             formData.append('files', file);
         });
 
-        // Add processing type
         formData.append('model_type', processingType.value);
 
-        // Make API request to process images
         const response = await fetch(`${API_BASE_URL}/process`, {
             method: 'POST',
             body: formData
         });
 
-        const data = await response.json();
+        const data = (await response.json()) as ApiResponse;
 
         if (!response.ok) {
             throw new Error(data.error || 'Failed to process images');
@@ -180,7 +192,6 @@ async function processImages() {
 
         sessionId.value = data.session_id;
 
-        // Transform API results to the format we need
         results.value = data.results.map((result) => {
             return {
                 filename: result.filename,
@@ -188,15 +199,18 @@ async function processImages() {
                 processed: `${API_BASE_URL}/results/${data.session_id}/${result.filename}`
             };
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error processing images:', error);
-        errorMessage.value = error.message || 'An error occurred while processing the images';
+        errorMessage.value =
+            error instanceof Error
+                ? error.message
+                : 'An error occurred while processing the images';
     } finally {
         isProcessing.value = false;
     }
 }
 
-function downloadImage(url, filename) {
+function downloadImage(url: string, filename: string): void {
     fetch(url)
         .then((response) => response.blob())
         .then((blob) => {
@@ -209,7 +223,7 @@ function downloadImage(url, filename) {
             document.body.removeChild(a);
             URL.revokeObjectURL(blobUrl);
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
             console.error('Download error:', error);
             errorMessage.value = 'Failed to download the image';
         });
