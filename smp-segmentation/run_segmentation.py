@@ -53,9 +53,13 @@ def preprocess_image(image_path):
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Failed to load image: {image_path}")
-    
+
     original_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    processed = preprocess_pipeline(image=original_image)
+    # Convert the image to grayscale for inference
+    grayscale_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    grayscale_image = cv2.cvtColor(grayscale_image, cv2.COLOR_GRAY2RGB)
+
+    processed = preprocess_pipeline(image=grayscale_image)
     tensor_image = processed["image"].unsqueeze(0).to(DEVICE)
     return original_image, tensor_image
 

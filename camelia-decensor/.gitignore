@@ -5,5 +5,6 @@ input/white_bars/*
 input/transparent_black/*
 !input/transparent_black/.keep
 
-output
+output/*
+!output/.keep
 temp

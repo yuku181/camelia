@@ -3,23 +3,23 @@ const censorsTypes = [
     {
         title: 'Black Bars',
         description: 'Removes commonly found black censorship bars.',
-        originalImage: '/demos/black_bars_original.jpg',
-        processedImage: '/demos/black_bars_processed.jpg',
+        originalImage: '/demos/black_bars_original.png',
+        processedImage: '/demos/black_bars_processed.png',
         color: 'text-rose'
     },
     {
         title: 'White Bars',
         description: 'Removes occasionally appearing white censorship bars.',
-        originalImage: '/demos/white_bars_original.jpg',
-        processedImage: '/demos/white_bars_processed.jpg',
+        originalImage: '/demos/white_bars_original.png',
+        processedImage: '/demos/white_bars_processed.png',
         color: 'text-foam'
     },
     {
         title: 'Transparent Black',
         description:
             'Handles semi-transparent black censoring overlays, found in digital releases.',
-        originalImage: '/demos/transparent_black_original.jpg',
-        processedImage: '/demos/transparent_black_processed.jpg',
+        originalImage: '/demos/transparent_black_original.png',
+        processedImage: '/demos/transparent_black_processed.png',
         color: 'text-iris'
     }
 ];
@@ -53,13 +53,17 @@ const censorsTypes = [
                             class="relative bg-surface border border-overlay rounded-lg overflow-hidden h-96">
                             <!-- Placeholder image -->
                             <div
+                                v-if="demo.title === 'Transparent Black'"
                                 class="absolute inset-0 flex items-center justify-center bg-highlight-low">
                                 <div class="text-center p-4">
                                     <Icon name="lucide:image" size="48" class="text-subtle mb-3" />
-                                    <p class="text-subtle">Original {{ demo.title }} Image</p>
+                                    <p class="text-subtle">I can't replicate the censorship :\</p>
                                 </div>
                             </div>
-                            <!-- <img :src="demo.originalImage" :alt="`Original ${demo.title}`" class="w-full h-full object-contain" /> -->
+                            <img
+                                :src="demo.originalImage"
+                                :alt="`Original ${demo.title}`"
+                                class="w-full h-full object-fill" />
                         </div>
                     </div>
 
@@ -73,13 +77,17 @@ const censorsTypes = [
                             class="relative bg-surface border border-overlay rounded-lg overflow-hidden h-96">
                             <!-- Placeholder image -->
                             <div
+                                v-if="demo.title === 'Transparent Black'"
                                 class="absolute inset-0 flex items-center justify-center bg-highlight-low">
                                 <div class="text-center p-4">
                                     <Icon name="lucide:image" size="48" class="text-subtle mb-3" />
-                                    <p class="text-subtle">Processed {{ demo.title }} Image</p>
+                                    <p class="text-subtle">I can't replicate the censorship :\</p>
                                 </div>
                             </div>
-                            <!-- <img :src="demo.processedImage" :alt="`Processed ${demo.title}`" class="w-full h-full object-contain" /> -->
+                            <img
+                                :src="demo.processedImage"
+                                :alt="`Processed ${demo.title}`"
+                                class="w-full h-full object-fill" />
                         </div>
                     </div>
                 </div>

@@ -67,6 +67,38 @@ def clean_temp_dirs():
             except Exception as e:
                 app.logger.error(f"Error removing directory {item_path}: {e}")
 
+def clear_output_directory(directory):
+    """Clear all contents from the specified output directory while preserving .keep files."""
+    if os.path.exists(directory):
+        for item in os.listdir(directory):
+            item_path = os.path.join(directory, item)
+            try:
+                if os.path.isfile(item_path):
+                    if os.path.basename(item_path) != ".keep":
+                        os.unlink(item_path)
+                elif os.path.isdir(item_path):
+                    for root, dirs, files in os.walk(item_path, topdown=False):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            if os.path.basename(file_path) != ".keep":
+                                os.unlink(file_path)
+                        for dir in dirs:
+                            dir_path = os.path.join(root, dir)
+                            dir_contents = os.listdir(dir_path)
+                            if not dir_contents or (len(dir_contents) == 1 and ".keep" in dir_contents):
+                                pass
+                            else:
+                                try:
+                                    os.rmdir(dir_path)
+                                except OSError:
+                                    pass
+            except Exception as e:
+                app.logger.error(f"Error handling {item_path}: {e}")
+        
+        os.makedirs(directory, exist_ok=True)
+        return True
+    return False
+
 def process_images(image_paths, model_type, session_id):
     """Process images using the existing Camelia functionality and capture logs."""
     # Create temporary directories
@@ -80,6 +112,9 @@ def process_images(image_paths, model_type, session_id):
     
     # Clean temp directories before processing
     clean_temp_dirs()
+    
+    # Clear output directory before processing
+    clear_output_directory(CAMELIA_OUTPUT)
     
     # Copy images to the input directory with the selected model type
     model_dir = os.path.join(WORKSPACE_ROOT, "camelia-decensor", "input", model_type)
