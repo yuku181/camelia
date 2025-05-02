@@ -107,28 +107,37 @@ def process_images(image_paths, model_type, session_id):
     try:
         process_logs[session_id].put(f"Starting image processing with {model_type}")
         
-        # Use Popen to capture output in real-time
+        # Use Popen to capture output
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
+            universal_newlines=True
         )
         
-        # Read output line by line
-        for line in iter(process.stdout.readline, ''):
-            process_logs[session_id].put(line.strip())
+        # Create a thread to read output in real-time to avoid blocking
+        def read_output():
+            for line in iter(process.stdout.readline, ''):
+                if line.strip(): 
+                    process_logs[session_id].put(line.strip())
+            process.stdout.close()
+            
+        # Start the output reader thread
+        output_thread = threading.Thread(target=read_output)
+        output_thread.daemon = True
+        output_thread.start()
         
-        process.stdout.close()
         return_code = process.wait()
+        
+        output_thread.join(timeout=5.0)
         
         if return_code != 0:
             process_logs[session_id].put(f"Process exited with error code {return_code}")
             process_status[session_id] = "error"
             return None, []
         
-        # Collect results
         results = []
         
         process_logs[session_id].put("Processing completed. Collecting results...")
@@ -137,7 +146,6 @@ def process_images(image_paths, model_type, session_id):
         for file in os.listdir(CAMELIA_OUTPUT):
             file_path = os.path.join(CAMELIA_OUTPUT, file)
             if os.path.isfile(file_path) and file.endswith(tuple(ALLOWED_EXTENSIONS)):
-                # Move the file to the session directory
                 dst_path = os.path.join(output_dir, file)
                 shutil.move(file_path, dst_path)
                 results.append({
@@ -149,7 +157,6 @@ def process_images(image_paths, model_type, session_id):
         # Check the temp/images directory
         if not results:
             process_logs[session_id].put("No results found in output directory. Checking temporary directories...")
-            # Check if there are any processed images in the temp dir
             temp_images_dir = os.path.join(CAMELIA_TEMP, "images")
             if os.path.exists(temp_images_dir):
                 for file in os.listdir(temp_images_dir):
@@ -296,7 +303,6 @@ def stream_logs(session_id):
                     log = log_queue.get(timeout=0.5)
                     yield f"data: {log}\n\n"
                 except queue.Empty:
-                    # Send a heartbeat to keep the connection alive
                     yield f"data: \n\n"
             except Exception as e:
                 app.logger.error(f"Error in log streaming: {e}")
@@ -316,7 +322,6 @@ def stream_logs(session_id):
 @app.route('/api/results/<session_id>/<filename>', methods=['GET'])
 def get_result(session_id, filename):
     """API endpoint to get a processed image."""
-    # Security check to prevent directory traversal
     if '..' in session_id or '..' in filename:
         return jsonify({"error": "Invalid path"}), 400
     
@@ -330,7 +335,6 @@ def get_result(session_id, filename):
 @app.route('/api/original/<filename>', methods=['GET'])
 def get_original(filename):
     """API endpoint to get the original image (for comparison)."""
-    # Security check to prevent directory traversal
     if '..' in filename:
         return jsonify({"error": "Invalid path"}), 400
     
