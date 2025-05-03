@@ -5,12 +5,27 @@
             class="bg-surface rounded-lg border border-overlay shadow-lg p-6 mb-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-medium text-foam">Results</h2>
-                <button
-                    @click="downloadAllImages"
-                    class="flex items-center space-x-2 bg-iris hover:bg-foam text-base py-2 px-4 rounded-md transition-colors duration-200">
-                    <Icon name="lucide:download" size="20" class="text-base" />
-                    <span>Download All</span>
-                </button>
+                <div class="flex items-center space-x-3">
+                    <div class="relative">
+                        <select
+                            v-model="downloadFormat"
+                            class="bg-base border border-highlight-low rounded-md py-2 px-3 pr-8 appearance-none focus:outline-none focus:border-iris text-sm">
+                            <option value="png">PNG</option>
+                            <option value="jpeg">JPEG</option>
+                            <option value="webp">WebP</option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text">
+                            <Icon name="lucide:chevron-down" size="16" />
+                        </div>
+                    </div>
+                    <button
+                        @click="downloadAllImages"
+                        class="flex items-center space-x-2 bg-iris hover:bg-foam text-base py-2 px-4 rounded-md transition-colors duration-200">
+                        <Icon name="lucide:download" size="20" class="text-base" />
+                        <span>Download All</span>
+                    </button>
+                </div>
             </div>
 
             <div
@@ -70,6 +85,7 @@
 <script setup lang="ts">
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { ref } from 'vue';
 
 interface ResultItem {
     filename: string;
@@ -81,14 +97,21 @@ const props = defineProps<{
     results: ResultItem[];
 }>();
 
+const downloadFormat = ref('png');
+
 async function downloadAllImages(): Promise<void> {
     try {
         const zip = new JSZip();
         const fetchPromises = props.results.map(async (result) => {
             try {
-                const response = await fetch(result.processed);
+                const url = `${result.processed}?format=${downloadFormat.value}`;
+                const response = await fetch(url);
                 const blob = await response.blob();
-                zip.file(`${result.filename}`, blob);
+
+                const fileNameBase = result.filename.split('.')[0];
+                const fileName = `${fileNameBase}.${downloadFormat.value}`;
+
+                zip.file(fileName, blob);
                 return true;
             } catch (error) {
                 console.error(`Error fetching ${result.filename}:`, error);
@@ -99,7 +122,7 @@ async function downloadAllImages(): Promise<void> {
         await Promise.all(fetchPromises);
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        saveAs(zipBlob, 'processed-images.zip');
+        saveAs(zipBlob, `processed-images-${downloadFormat.value}.zip`);
     } catch (error) {
         console.error('Error creating zip file:', error);
         alert('Failed to download images. Please try again.');

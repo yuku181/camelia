@@ -3,13 +3,15 @@ import uuid
 import shutil
 import queue
 import threading
-from flask import Flask, request, jsonify, send_file, Response, stream_with_context
-from flask_cors import CORS
-from werkzeug.utils import secure_filename
+import io
 import tempfile
 import subprocess
 import psutil
 import time
+from flask import Flask, request, jsonify, send_file, Response, stream_with_context
+from flask_cors import CORS
+from werkzeug.utils import secure_filename
+from PIL import Image
 
 app = Flask(__name__, static_folder=None)
 CORS(app)  # Enable CORS for all routes
@@ -377,12 +379,51 @@ def get_result(session_id, filename):
     if '..' in session_id or '..' in filename:
         return jsonify({"error": "Invalid path"}), 400
     
+    output_format = request.args.get('format', None)
+    
     filepath = os.path.join(CAMELIA_OUTPUT, session_id, secure_filename(filename))
     
     if not os.path.exists(filepath):
         return jsonify({"error": "File not found"}), 404
     
-    return send_file(filepath)
+    if not output_format:
+        return send_file(filepath)
+    
+    if output_format.lower() not in ['png', 'jpeg', 'webp']:
+        return jsonify({"error": "Invalid format requested"}), 400
+        
+    try:
+        img = Image.open(filepath)
+        
+        output_buffer = io.BytesIO()
+        
+        if output_format.lower() == 'jpeg':
+            if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
+                img = background
+            img.save(output_buffer, format='JPEG', quality=100, optimize=True)
+        elif output_format.lower() == 'webp':
+            img.save(output_buffer, format='WEBP', quality=100, method=6)
+        else:
+            img.save(output_buffer, format=output_format.upper())
+            
+        output_buffer.seek(0)
+        
+        mimetype = f'image/{output_format.lower()}'
+        if output_format.lower() == 'jpeg':
+            mimetype = 'image/jpeg'
+            
+        return send_file(
+            output_buffer,
+            mimetype=mimetype,
+            as_attachment=False,
+            download_name=f"{os.path.splitext(filename)[0]}.{output_format.lower()}"
+        )
+        
+    except Exception as e:
+        app.logger.error(f"Error converting image: {e}")
+        return jsonify({"error": f"Error converting image: {str(e)}"}), 500
 
 @app.route('/api/original/<filename>', methods=['GET'])
 def get_original(filename):
@@ -390,7 +431,6 @@ def get_original(filename):
     if '..' in filename:
         return jsonify({"error": "Invalid path"}), 400
     
-    # Get from temp/images directory
     filepath = os.path.join(CAMELIA_TEMP, "images", secure_filename(filename))
     
     if not os.path.exists(filepath):
