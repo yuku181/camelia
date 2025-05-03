@@ -42,6 +42,8 @@ def clean_temp_dirs():
                     os.unlink(os.path.join(root, file))
                 except Exception as e:
                     app.logger.error(f"Error removing file {os.path.join(root, file)}: {e}")
+    else:
+        ensure_directory(images_dir)
     
     # Clean masks directory
     masks_dir = os.path.join(CAMELIA_TEMP, "masks")
@@ -52,6 +54,8 @@ def clean_temp_dirs():
                     os.unlink(os.path.join(root, file))
                 except Exception as e:
                     app.logger.error(f"Error removing file {os.path.join(root, file)}: {e}")
+    else:
+        ensure_directory(masks_dir)
     
     # Clean any other files directly in the temp directory
     for item in os.listdir(CAMELIA_TEMP):

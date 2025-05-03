@@ -7,7 +7,7 @@
                 <h2 class="text-2xl font-medium text-foam">Results</h2>
                 <button
                     @click="downloadAllImages"
-                    class="flex items-center space-x-2 bg-iris hover:bg-opacity-80 text-base py-2 px-4 rounded-md transition-colors duration-200">
+                    class="flex items-center space-x-2 bg-iris hover:bg-foam text-base py-2 px-4 rounded-md transition-colors duration-200">
                     <Icon name="lucide:download" size="20" class="text-base" />
                     <span>Download All</span>
                 </button>
