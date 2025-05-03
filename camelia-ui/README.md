@@ -1,75 +1,49 @@
-# Nuxt Minimal Starter
+# Camelia UI
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+The frontend interface for the Camelia image processing application.
 
-## Setup
+## Getting Started
 
-Make sure to install dependencies:
+### Prerequisites
 
-```bash
-# npm
-npm install
+-   Node.js (v16 or newer)
+-   npm or yarn
+-   Python 3.9+ (for the API server)
 
-# pnpm
-pnpm install
+### How to Launch the UI
 
-# yarn
-yarn install
+Follow these simple steps to start the Camelia web interface:
 
-# bun
-bun install
-```
+1. **Start the API server** first, make sure to use the correct environment:
 
-## Development Server
+    ```bash
+    # From the root directory of the project
+    python api.py
+    ```
 
-Start the development server on `http://localhost:3000`:
+    Leave this terminal window open.
 
-```bash
-# npm
-npm run dev
+2. **Start the web UI** (in a new terminal):
 
-# pnpm
-pnpm dev
+    ```bash
+    # Navigate to the UI directory
+    cd camelia-ui
 
-# yarn
-yarn dev
+    # Install dependencies (first time only)
+    npm install
 
-# bun
-bun run dev
-```
+    # Launch the development server
+    npm run dev
+    ```
 
-## Production
+3. **Access the interface**:
+    - Open your web browser
+    - Navigate to [http://localhost:3000](http://localhost:3000)
 
-Build the application for production:
+The Camelia UI should now be visible and ready to use.
 
-```bash
-# npm
-npm run build
+## Troubleshooting
 
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+-   If you encounter any errors, make sure both terminal windows show the servers are running
+-   Check that ports 3000 (UI) and 5000 (API) are not being used by other applications
+-   If you see a "Failed to fetch" error, ensure the API server is running correctly

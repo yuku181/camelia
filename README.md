@@ -1,4 +1,10 @@
-# Camelia
+<div align="center">
+  <a href="https://github.com/windbow27/camelia">
+    <img src="https://raw.githubusercontent.com/windbow27/camelia/refs/heads/main/camelia-ui/public/logo.png" width="125" alt="Camelia Logo">
+  </a>
+  
+  # Camelia
+</div>
 
 Camelia is an image decensor tool to remove censorship bars from images (you know what kind of images I am talking about). It supports black bars, white bars, and transparent black censorship types.
 
@@ -79,7 +85,7 @@ Put the segmentation models in smp-segmentation/pretrained and inpainting model 
 
 ### Web UI Mode
 
-1. Start the API server:
+1. Start the API server, make sure to use the correct environment:
 
     ```bash
     python api.py
@@ -93,3 +99,15 @@ Put the segmentation models in smp-segmentation/pretrained and inpainting model 
     ```
 
 3. Open your browser and navigate to http://localhost:3000
+
+## Acknowledgments
+
+-   [Er0manga](https://github.com/Er0manga/Er0mangaDemo)
+-   [smp](https://github.com/qubvel-org/segmentation_models.pytorch)
+-   [lama](https://github.com/advimman/lama)
+
+## Disclaimer
+
+This project is intended for personal use only. Do not share the results on public sites. If you choose to do so anyway, please do not credit me or Camelia.
+
+Sharing the tool is welcomed. A ☆ would also be greatly appreciated.

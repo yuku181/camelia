@@ -21,9 +21,10 @@
                     </div>
                     <button
                         @click="downloadAllImages"
-                        class="flex items-center space-x-2 bg-iris hover:bg-foam text-base py-2 px-4 rounded-md transition-colors duration-200">
-                        <Icon name="lucide:download" size="20" class="text-base" />
-                        <span>Download All</span>
+                        :disabled="isDownloading"
+                        class="bg-iris text-base rounded-md py-2 px-4 hover:bg-iris-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span v-if="isDownloading">Downloading...</span>
+                        <span v-else>Download All</span>
                     </button>
                 </div>
             </div>
@@ -98,8 +99,11 @@ const props = defineProps<{
 }>();
 
 const downloadFormat = ref('png');
+const isDownloading = ref(false);
 
 async function downloadAllImages(): Promise<void> {
+    if (isDownloading.value) return;
+    isDownloading.value = true;
     try {
         const zip = new JSZip();
         const fetchPromises = props.results.map(async (result) => {
@@ -123,6 +127,7 @@ async function downloadAllImages(): Promise<void> {
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         saveAs(zipBlob, `processed-images-${downloadFormat.value}.zip`);
+        isDownloading.value = false;
     } catch (error) {
         console.error('Error creating zip file:', error);
         alert('Failed to download images. Please try again.');
