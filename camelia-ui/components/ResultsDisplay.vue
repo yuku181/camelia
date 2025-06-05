@@ -75,11 +75,21 @@
                                 class="absolute bottom-0 right-0 bg-base bg-opacity-80 px-2 py-1 m-2 text-xs rounded">
                                 {{ result.filename }}
                             </div>
+                            <button
+                                class="absolute top-0 left-0 m-2 px-2 py-1 text-xs rounded bg-iris text-base"
+                                @click="openEditor(index)">
+                                Edit Mask
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        <MaskEditor
+            v-if="showEditor"
+            :image="editorImage"
+            @save="saveMask"
+            @close="closeEditor" />
     </div>
 </template>
 
@@ -87,19 +97,25 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { ref } from 'vue';
+import MaskEditor from '@/components/MaskEditor.vue';
+import { reinpaintImage, ResultItem } from '@/services/api';
 
-interface ResultItem {
-    filename: string;
-    original: string;
-    processed: string;
-}
+interface LocalResultItem extends ResultItem {}
 
 const props = defineProps<{
-    results: ResultItem[];
+    results: LocalResultItem[];
+}>();
+
+const emit = defineEmits<{
+    (e: 'update:results', results: LocalResultItem[]): void;
 }>();
 
 const downloadFormat = ref('png');
 const isDownloading = ref(false);
+const showEditor = ref(false);
+const editingIndex = ref<number | null>(null);
+const editorImage = ref('');
+const editorFilename = ref('');
 
 async function downloadAllImages(): Promise<void> {
     if (isDownloading.value) return;
@@ -131,6 +147,33 @@ async function downloadAllImages(): Promise<void> {
     } catch (error) {
         console.error('Error creating zip file:', error);
         alert('Failed to download images. Please try again.');
+    }
+}
+
+function openEditor(index: number) {
+    const item = props.results[index];
+    editorImage.value = item.original;
+    editorFilename.value = item.filename;
+    editingIndex.value = index;
+    showEditor.value = true;
+}
+
+function closeEditor() {
+    showEditor.value = false;
+    editingIndex.value = null;
+}
+
+async function saveMask(blob: Blob) {
+    if (editingIndex.value === null) return;
+    const item = props.results[editingIndex.value];
+    try {
+        const newResult = await reinpaintImage(item.sessionId, item.filename, blob);
+        const updated = [...props.results, newResult];
+        emit('update:results', updated);
+    } catch (error) {
+        console.error('Error reinpainting image:', error);
+    } finally {
+        closeEditor();
     }
 }
 </script>

@@ -16,7 +16,7 @@
             :isVisible="isProcessing || showLogs"
             @closeConsole="hideConsole" />
 
-        <ResultsDisplay :results="results" />
+        <ResultsDisplay v-model:results="results" />
 
         <ErrorMessage :message="errorMessage" />
     </main>
