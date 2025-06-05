@@ -19,6 +19,16 @@
                             <Icon name="lucide:chevron-down" size="16" />
                         </div>
                     </div>
+                    <div class="flex items-center space-x-2">
+                        <label class="flex items-center space-x-1 text-sm text-text">
+                            <input type="checkbox" v-model="includeOriginal" class="form-checkbox" />
+                            <span>Original</span>
+                        </label>
+                        <label class="flex items-center space-x-1 text-sm text-text">
+                            <input type="checkbox" v-model="includeProcessed" class="form-checkbox" />
+                            <span>Processed</span>
+                        </label>
+                    </div>
                     <button
                         @click="downloadAllImages"
                         :disabled="isDownloading"
@@ -100,22 +110,37 @@ const props = defineProps<{
 
 const downloadFormat = ref('png');
 const isDownloading = ref(false);
+const includeOriginal = ref(false);
+const includeProcessed = ref(true);
 
 async function downloadAllImages(): Promise<void> {
-    if (isDownloading.value) return;
+    if (isDownloading.value || (!includeOriginal.value && !includeProcessed.value)) return;
     isDownloading.value = true;
     try {
         const zip = new JSZip();
+        const originalFolder = includeOriginal.value ? zip.folder('original') : zip;
+        const processedFolder = includeProcessed.value ? zip.folder('processed') : zip;
+
         const fetchPromises = props.results.map(async (result) => {
             try {
-                const url = `${result.processed}?format=${downloadFormat.value}`;
-                const response = await fetch(url);
-                const blob = await response.blob();
+                if (includeProcessed.value) {
+                    const url = `${result.processed}?format=${downloadFormat.value}`;
+                    const response = await fetch(url);
+                    const blob = await response.blob();
 
-                const fileNameBase = result.filename.split('.')[0];
-                const fileName = `${fileNameBase}.${downloadFormat.value}`;
+                    const fileNameBase = result.filename.split('.')[0];
+                    const fileName = `${fileNameBase}.${downloadFormat.value}`;
 
-                zip.file(fileName, blob);
+                    processedFolder.file(fileName, blob);
+                }
+
+                if (includeOriginal.value) {
+                    const response = await fetch(result.original);
+                    const blob = await response.blob();
+
+                    originalFolder.file(result.filename, blob);
+                }
+
                 return true;
             } catch (error) {
                 console.error(`Error fetching ${result.filename}:`, error);
@@ -126,7 +151,15 @@ async function downloadAllImages(): Promise<void> {
         await Promise.all(fetchPromises);
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        saveAs(zipBlob, `processed-images-${downloadFormat.value}.zip`);
+        let variant = '';
+        if (includeOriginal.value && includeProcessed.value) {
+            variant = 'original-processed-images';
+        } else if (includeOriginal.value) {
+            variant = 'original-images';
+        } else {
+            variant = 'processed-images';
+        }
+        saveAs(zipBlob, `${variant}.zip`);
         isDownloading.value = false;
     } catch (error) {
         console.error('Error creating zip file:', error);
