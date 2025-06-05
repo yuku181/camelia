@@ -485,4 +485,4 @@ if __name__ == '__main__':
     # Ensure output directories exist
     ensure_directory(CAMELIA_TEMP)
     ensure_directory(CAMELIA_OUTPUT)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get("API_PORT", "5000")), debug=True)

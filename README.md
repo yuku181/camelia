@@ -61,6 +61,11 @@ Download the models here: [models](https://drive.google.com/drive/folders/1AAyv6
 
 Put the segmentation models in smp-segmentation/pretrained and inpainting model (the whole folder) in lama-inpainting/pretrained.
 
+### Environment Variables
+
+- `API_PORT` - Port for the Flask API server. Defaults to `5000`.
+- `API_BASE_URL` - Base URL used by the web UI to contact the API. Defaults to `http://localhost:5000/api`.
+
 ## Usage
 
 ### CLI Mode
