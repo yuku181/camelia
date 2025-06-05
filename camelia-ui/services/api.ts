@@ -2,6 +2,7 @@ const API_BASE_URL: string = useRuntimeConfig().public.apiBaseUrl;
 
 export interface ResultItem {
     filename: string;
+    sessionId: string;
     original: string;
     processed: string;
 }
@@ -107,6 +108,7 @@ export function transformResults(
     return results.map((result) => {
         return {
             filename: result.filename,
+            sessionId,
             original: `${API_BASE_URL}/original/${result.filename}`,
             processed: `${API_BASE_URL}/results/${sessionId}/${result.filename}`
         };
@@ -133,4 +135,37 @@ export async function cancelProcessingJob(sessionId: string): Promise<boolean> {
         console.error('Error cancelling job:', error);
         return false;
     }
+}
+
+/**
+ * Send an edited mask to the server and get the new result
+ */
+export async function reinpaintImage(
+    sessionId: string,
+    filename: string,
+    mask: Blob
+): Promise<ResultItem> {
+    const formData = new FormData();
+    formData.append('mask', mask, 'mask.png');
+
+    const response = await fetch(
+        `${API_BASE_URL}/reinpaint/${sessionId}/${filename}`,
+        {
+            method: 'POST',
+            body: formData
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to reinpaint image');
+    }
+
+    return {
+        filename: data.filename,
+        sessionId,
+        original: `${API_BASE_URL}/original/${filename}`,
+        processed: `${API_BASE_URL}/results/${sessionId}/${data.filename}`
+    };
 }

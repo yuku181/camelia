@@ -438,6 +438,58 @@ def get_original(filename):
     
     return send_file(filepath)
 
+@app.route('/api/reinpaint/<session_id>/<filename>', methods=['POST'])
+def reinpaint(session_id, filename):
+    """Re-run inpainting on a single image using a user-provided mask."""
+    if 'mask' not in request.files:
+        return jsonify({'success': False, 'error': 'No mask provided'}), 400
+
+    mask_file = request.files['mask']
+    safe_name = secure_filename(filename)
+    image_path = os.path.join(CAMELIA_TEMP, 'images', safe_name)
+
+    if not os.path.exists(image_path):
+        return jsonify({'success': False, 'error': 'Image not found'}), 404
+
+    try:
+        with tempfile.TemporaryDirectory() as in_dir, \
+                tempfile.TemporaryDirectory() as mask_dir, \
+                tempfile.TemporaryDirectory() as out_dir:
+
+            shutil.copy(image_path, os.path.join(in_dir, safe_name))
+            mask_save = os.path.join(mask_dir, safe_name)
+            mask_file.save(mask_save)
+
+            from main import run_inpainting
+
+            success = run_inpainting(
+                in_dir=in_dir,
+                mask_dir=mask_dir,
+                out_dir=out_dir,
+                checkpoint=os.path.join(WORKSPACE_ROOT, 'lama-inpainting', 'pretrained', 'best'),
+                inpainting_script=os.path.join(WORKSPACE_ROOT, 'lama-inpainting', 'bin', 'uncen.py'),
+                workspace_root=WORKSPACE_ROOT
+            )
+
+            if not success:
+                return jsonify({'success': False, 'error': 'Inpainting failed'}), 500
+
+            new_name = f"{os.path.splitext(safe_name)[0]}_edit{os.path.splitext(safe_name)[1]}"
+            session_dir = os.path.join(CAMELIA_OUTPUT, session_id)
+            ensure_directory(session_dir)
+            src = os.path.join(out_dir, safe_name)
+            dst = os.path.join(session_dir, new_name)
+            shutil.move(src, dst)
+
+        key = f"results_{session_id}"
+        if key in app.config:
+            app.config[key].append({'filename': new_name, 'processed_path': dst})
+
+        return jsonify({'success': True, 'filename': new_name})
+    except Exception as e:
+        app.logger.error(f"Reinpaint error: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
 @app.route('/api/cancel/<session_id>', methods=['POST'])
 def cancel_job(session_id):
     """Cancel a running processing job."""
